@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Expense Dashboard (Offline)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4f46e5',
+                        secondary: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            text: '#f1f5f9',
+                            muted: '#94a3b8',
+                            border: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-slate-100 text-slate-800 font-sans min-h-screen p-4 md:p-8 dark:bg-dark-bg dark:text-dark-text transition-colors duration-300">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- Header & Top Actions -->
+        <header
+            class="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border transition-colors">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary p-3 rounded-xl shadow-lg shadow-primary/30 text-white">
+                    <i data-lucide="layout-dashboard" class="w-8 h-8"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Expense Dashboard</h1>
+                    <p class="text-slate-500 dark:text-dark-muted text-sm" id="topInsight">Welcome back! Let's track
+                        your spending.</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2 justify-center md:justify-end">
+                <button onclick="toggleDarkMode()"
+                    class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    title="Toggle Dark Mode">
+                    <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-yellow-400"></i>
+                </button>
+                <button onclick="openSettingsModal()"
+                    class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    title="Settings & Backup">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                </button>
+                <button onclick="openBudgetModal()"
+                    class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg font-medium transition-colors">
+                    <i data-lucide="target" class="w-4 h-4"></i> Budgets
+                </button>
+                <button onclick="exportToCSV()"
+                    class="flex items-center gap-2 bg-secondary hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
+                    <i data-lucide="download" class="w-4 h-4"></i> CSV
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Alerts (Budget Warnings) -->
+        <div id="alertContainer" class="space-y-2"></div>
+
+        <!-- 5-Column Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <!-- Today's Expenses -->
+            <div
+                class="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-dark-muted uppercase tracking-wider">
+                            Today</p>
+                        <h2 class="text-3xl font-bold text-slate-900 dark:text-white mt-1">₹<span
+                                id="dayTotal">0.00</span></h2>
+                    </div>
+                    <div class="bg-indigo-50 dark:bg-indigo-900/30 p-2 rounded-lg text-primary"><i
+                            data-lucide="calendar" class="w-6 h-6"></i></div>
+                </div>
+            </div>
+            <!-- This Week -->
+            <div
+                class="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-dark-muted uppercase tracking-wider">This
+                            Week</p>
+                        <h2 class="text-3xl font-bold text-primary mt-1">₹<span id="weekTotal">0.00</span></h2>
+                    </div>
+                    <div class="bg-blue-50 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400"><i
+                            data-lucide="calendar-days" class="w-6 h-6"></i></div>
+                </div>
+            </div>
+            <!-- This Month -->
+            <div
+                class="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-dark-muted uppercase tracking-wider">This
+                            Month</p>
+                        <h2 class="text-3xl font-bold text-danger mt-1">₹<span id="monthTotal">0.00</span></h2>
+                    </div>
+                    <div class="bg-red-50 dark:bg-red-900/30 p-2 rounded-lg text-danger"><i data-lucide="trending-down"
+                            class="w-6 h-6"></i></div>
+                </div>
+            </div>
+            <!-- This Year -->
+            <div
+                class="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-dark-muted uppercase tracking-wider">This
+                            Year</p>
+                        <h2 class="text-3xl font-bold text-slate-900 dark:text-white mt-1">₹<span
+                                id="yearTotal">0.00</span></h2>
+                    </div>
+                    <div class="bg-purple-50 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400">
+                        <i data-lucide="calendar-check" class="w-6 h-6"></i></div>
+                </div>
+            </div>
+            <!-- Monthly Budget Progress -->
+            <div
+                class="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border flex flex-col justify-center transition-colors">
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="font-medium text-slate-700 dark:text-slate-300">Monthly Budget</span>
+                    <span class="text-slate-500 dark:text-dark-muted" id="budgetLabel">₹0 / ₹0</span>
+                </div>
+                <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2.5 mb-1 overflow-hidden">
+                    <div id="budgetProgressBar" class="bg-primary h-2.5 rounded-full transition-all duration-500"
+                        style="width: 0%"></div>
+                </div>
+                <p id="budgetStatusText" class="text-xs text-slate-500 dark:text-dark-muted text-right">0% used</p>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Left Column: Form -->
+            <div class="lg:col-span-1">
+                <div
+                    class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-6 transition-colors">
+                    <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-900 dark:text-white">
+                        <i data-lucide="plus-circle" class="w-5 h-5 text-primary"></i>
+                        Add Expense
+                    </h3>
+
+                    <form id="expenseForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount
+                                (₹)</label>
+                            <input type="number" id="amount" step="0.01" min="0" placeholder="0.00" required
+                                class="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-colors">
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                            <input type="text" id="category" list="categoryOptions" placeholder="e.g. Food, Transport"
+                                required
+                                class="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-colors">
+                            <datalist id="categoryOptions">
+                                <!-- Populated dynamically -->
+                            </datalist>
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                            <input type="text" id="description" placeholder="What was this for?"
+                                class="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-colors">
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+                            <input type="date" id="date" required
+                                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-colors">
+                        </div>
+
+                        <button type="submit"
+                            class="w-full bg-primary hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex justify-center items-center gap-2 shadow-sm mt-2">
+                            <i data-lucide="save" class="w-4 h-4"></i> Save Expense
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Middle Column: Charts -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Doughnut Chart (Categories) -->
+                <div
+                    class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-5 flex flex-col justify-center items-center h-[320px] transition-colors">
+                    <h3 class="text-sm font-semibold w-full text-left mb-2 text-slate-700 dark:text-slate-300">Expense
+                        Breakdown</h3>
+                    <div class="w-full h-full relative flex justify-center items-center pb-4">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Line Chart (Trend) -->
+                <div
+                    class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-5 flex flex-col justify-center items-center h-[320px] transition-colors">
+                    <h3 class="text-sm font-semibold w-full text-left mb-2 text-slate-700 dark:text-slate-300">15-Day
+                        Spending Trend</h3>
+                    <div class="w-full h-full relative flex justify-center items-center pb-4">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: List & Filters -->
+            <div class="lg:col-span-1">
+                <div
+                    class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-6 h-full max-h-[665px] flex flex-col transition-colors">
+
+                    <div class="flex flex-col gap-3 mb-4">
+                        <h3 class="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-white">
+                            <i data-lucide="list" class="w-5 h-5 text-primary"></i>
+                            Recent Expenses
+                        </h3>
+                        <!-- Search & Filters -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="relative">
+                                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+                                <input type="text" id="searchInput" placeholder="Search..." oninput="updateUI()"
+                                    class="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-primary dark:text-white transition-colors">
+                            </div>
+                            <select id="filterCategory" onchange="updateUI()"
+                                class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-primary dark:text-white transition-colors">
+                                <option value="all">All Categories</option>
+                                <!-- Dynamic Options -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="overflow-y-auto custom-scrollbar pr-2 flex-1">
+                        <ul id="expenseList" class="space-y-3">
+                            <!-- Items injected here -->
+                        </ul>
+                        <div id="emptyListMessage" class="text-center py-12 text-slate-400 dark:text-slate-600 hidden">
+                            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                            <p>No expenses found.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Budget Settings Modal -->
+    <dialog id="budgetModal"
+        class="bg-white dark:bg-dark-card text-slate-900 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-dark-border p-0 w-full max-w-md transition-colors">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Set Budgets</h3>
+                <button onclick="document.getElementById('budgetModal').close()"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i data-lucide="x"
+                        class="w-5 h-5"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Overall Monthly
+                        Budget</label>
+                    <input type="number" id="overallBudgetInput" placeholder="e.g. 50000"
+                        class="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary dark:text-white">
+                </div>
+                <div class="pt-4 border-t border-slate-100 dark:border-slate-700">
+                    <p class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Category Budgets (Optional)
+                    </p>
+                    <div class="grid grid-cols-2 gap-2" id="categoryBudgetInputs">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="saveBudgets()"
+                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-indigo-700">Save Budgets</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Settings & Backup Modal -->
+    <dialog id="settingsModal"
+        class="bg-white dark:bg-dark-card text-slate-900 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-dark-border p-0 w-full max-w-md transition-colors">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Settings</h3>
+                <button onclick="document.getElementById('settingsModal').close()"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i data-lucide="x"
+                        class="w-5 h-5"></i></button>
+            </div>
+
+            <!-- Custom Categories -->
+            <div class="mb-6">
+                <h4 class="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase mb-3">Custom Categories</h4>
+                <div class="flex gap-2 mb-3">
+                    <input type="text" id="newCategoryInput" placeholder="New Category Name"
+                        class="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm outline-none focus:border-primary dark:text-white">
+                    <button onclick="addCategory()" class="bg-primary text-white p-2 rounded-lg hover:bg-indigo-600"><i
+                            data-lucide="plus" class="w-4 h-4"></i></button>
+                </div>
+                <ul id="settingsCategoryList" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                    <!-- List items -->
+                </ul>
+            </div>
+
+            <!-- Data Management -->
+            <div class="pt-6 border-t border-slate-100 dark:border-slate-700">
+                <h4 class="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase mb-3">Data Management</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="exportJSON()"
+                        class="flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 p-3 rounded-xl border border-emerald-100 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors">
+                        <i data-lucide="download-cloud" class="w-5 h-5"></i>
+                        <span class="font-medium">Backup Data</span>
+                    </button>
+                    <label
+                        class="flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 p-3 rounded-xl border border-blue-100 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors cursor-pointer">
+                        <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                        <span class="font-medium">Restore Data</span>
+                        <input type="file" id="importFile" accept=".json" class="hidden" onchange="importJSON(this)">
+                    </label>
+                </div>
+                <p class="text-xs text-slate-400 mt-2 text-center">Export to save a JSON file. Import to restore.</p>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+        // Application State
+        let expenses = [];
+        let categoryChartInstance = null;
+        let trendChartInstance = null;
+        let editingId = null;
+
+        // Defaults
+        const defaultCategories = ['Food & Dining', 'Transportation', 'Shopping', 'Bills & Utilities', 'Entertainment', 'Healthcare', 'Education'];
+        let categories = JSON.parse(localStorage.getItem('customCategories')) || defaultCategories;
+        let budgets = JSON.parse(localStorage.getItem('userBudgets')) || { overall: 0, categories: {} };
+
+        // Dark Mode Logic
+        function initDarkMode() {
+            if (localStorage.getItem('darkMode') === 'true' || (!('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark);
+            updateCharts(); // Re-render charts for color changes
+        }
+
+        // Initialize Icons & Date
+        lucide.createIcons();
+        document.getElementById('date').valueAsDate = new Date();
+        const formatMoney = (amount) => parseFloat(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Helper: Get start of current week (Sunday)
+        const getStartOfWeek = (date) => {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day;
+            return new Date(d.setDate(diff)).toISOString().split('T')[0];
+        };
+
+        // ==========================================
+        // 💾 DATA LAYER
+        // ==========================================
+        function loadData() {
+            const storedExp = localStorage.getItem('expenses');
+            expenses = storedExp ? JSON.parse(storedExp) : [];
+            updateUI();
+        }
+
+        function saveData() {
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            localStorage.setItem('customCategories', JSON.stringify(categories));
+            localStorage.setItem('userBudgets', JSON.stringify(budgets));
+        }
+
+        // ==========================================
+        // 🔄 UI UPDATE ENGINE
+        // ==========================================
+        function init() {
+            initDarkMode();
+            loadData();
+        }
+
+        function updateUI() {
+            renderCategoryOptions();
+            renderList();
+            updateSummaryCards();
+            updateCharts();
+            checkBudgetAlerts();
+            renderSettingsCategories();
+        }
+
+        function renderCategoryOptions() {
+            // Datalist for input
+            const datalist = document.getElementById('categoryOptions');
+            datalist.innerHTML = categories.map(c => `<option value="${c}">`).join('');
+
+            // Filter Dropdown
+            const filterSelect = document.getElementById('filterCategory');
+            const currentVal = filterSelect.value;
+            filterSelect.innerHTML = `<option value="all">All Categories</option>` +
+                categories.map(c => `<option value="${c}">${c}</option>`).join('');
+            filterSelect.value = currentVal; // preserve selection
+        }
+
+        // ==========================================
+        // 📊 DASHBOARD LOGIC
+        // ==========================================
+        function updateSummaryCards() {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const startOfWeekStr = getStartOfWeek(todayStr);
+            const currentMonthStr = todayStr.substring(0, 7);
+            const currentYearStr = todayStr.substring(0, 4);
+
+            let dayTotal = 0, weekTotal = 0, monthTotal = 0, yearTotal = 0;
+            const categoryTotals = {};
+
+            expenses.forEach(t => {
+                const amt = parseFloat(t.amount);
+                if (t.date === todayStr) dayTotal += amt;
+                if (t.date >= startOfWeekStr && t.date <= todayStr) weekTotal += amt;
+                if (t.date.startsWith(currentMonthStr)) {
+                    monthTotal += amt;
+                    categoryTotals[t.category] = (categoryTotals[t.category] || 0) + amt;
+                }
+                if (t.date.startsWith(currentYearStr)) yearTotal += amt;
+            });
+
+            document.getElementById('dayTotal').innerText = formatMoney(dayTotal);
+            document.getElementById('weekTotal').innerText = formatMoney(weekTotal);
+            document.getElementById('monthTotal').innerText = formatMoney(monthTotal);
+            document.getElementById('yearTotal').innerText = formatMoney(yearTotal);
+
+            if (Object.keys(categoryTotals).length > 0) {
+                const topCat = Object.keys(categoryTotals).reduce((a, b) => categoryTotals[a] > categoryTotals[b] ? a : b);
+                document.getElementById('topInsight').innerHTML = `Insight: You spend most on <strong class="text-primary">${topCat}</strong> this month.`;
+            } else {
+                document.getElementById('topInsight').innerText = "Add expenses to see your spending insights.";
+            }
+
+            if (budgets.overall > 0) {
+                const pct = Math.min((monthTotal / budgets.overall) * 100, 100);
+                const bar = document.getElementById('budgetProgressBar');
+                document.getElementById('budgetLabel').innerText = `₹${formatMoney(monthTotal)} / ₹${formatMoney(budgets.overall)}`;
+                bar.style.width = `${pct}%`;
+                document.getElementById('budgetStatusText').innerText = `${pct.toFixed(1)}% used`;
+
+                if (pct >= 100) bar.className = "bg-danger h-2.5 rounded-full transition-all duration-500";
+                else if (pct >= 80) bar.className = "bg-warning h-2.5 rounded-full transition-all duration-500";
+                else bar.className = "bg-primary h-2.5 rounded-full transition-all duration-500";
+            } else {
+                document.getElementById('budgetLabel').innerText = "Not set";
+                document.getElementById('budgetProgressBar').style.width = "0%";
+                document.getElementById('budgetStatusText').innerText = "0% used";
+            }
+        }
+
+        function checkBudgetAlerts() {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = '';
+            const currentMonthStr = new Date().toISOString().substring(0, 7);
+            const categoryTotals = {};
+            let monthTotal = 0;
+
+            expenses.filter(t => t.date.startsWith(currentMonthStr)).forEach(t => {
+                const amt = parseFloat(t.amount);
+                monthTotal += amt;
+                categoryTotals[t.category] = (categoryTotals[t.category] || 0) + amt;
+            });
+
+            if (budgets.overall > 0) {
+                const pct = (monthTotal / budgets.overall) * 100;
+                if (pct >= 100) createAlert('danger', 'Overall budget exceeded!', `Spent ₹${formatMoney(monthTotal)} / ₹${formatMoney(budgets.overall)}`);
+                else if (pct >= 80) createAlert('warning', 'Approaching budget limit!', `Used ${pct.toFixed(0)}% of monthly budget.`);
+            }
+
+            for (const [cat, limit] of Object.entries(budgets.categories)) {
+                if (limit > 0 && categoryTotals[cat]) {
+                    const catPct = (categoryTotals[cat] / limit) * 100;
+                    if (catPct >= 100) createAlert('danger', `${cat} budget exceeded!`, `Spent ₹${formatMoney(categoryTotals[cat])} (Limit: ₹${limit})`);
+                }
+            }
+        }
+
+        function createAlert(type, title, desc) {
+            const div = document.createElement('div');
+            const colors = type === 'danger'
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
+                : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300';
+            const icon = type === 'danger' ? 'alert-triangle' : 'alert-circle';
+
+            div.className = `flex items-start gap-3 p-3 rounded-xl border ${colors} mb-2 transition-colors`;
+            div.innerHTML = `
+                <i data-lucide="${icon}" class="w-5 h-5 shrink-0 mt-0.5"></i>
+                <div>
+                    <h4 class="text-sm font-bold">${title}</h4>
+                    <p class="text-xs opacity-90">${desc}</p>
+                </div>
+            `;
+            document.getElementById('alertContainer').appendChild(div);
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 📝 LIST & FILTERS
+        // ==========================================
+        function renderList() {
+            const listEl = document.getElementById('expenseList');
+            const emptyMsg = document.getElementById('emptyListMessage');
+            listEl.innerHTML = '';
+
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+            const filterCat = document.getElementById('filterCategory').value;
+
+            // Filter Logic
+            const filtered = expenses.filter(t => {
+                const matchesSearch = t.description.toLowerCase().includes(searchVal) || t.category.toLowerCase().includes(searchVal);
+                const matchesCat = filterCat === 'all' || t.category === filterCat;
+                return matchesSearch && matchesCat;
+            }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (filtered.length === 0) {
+                emptyMsg.classList.remove('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+
+                filtered.forEach(t => {
+                    const li = document.createElement('li');
+                    li.className = 'flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl transition-colors group';
+
+                    li.innerHTML = `
+                        <div class="flex items-start gap-3 overflow-hidden">
+                            <div class="p-2 border rounded-lg shrink-0 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                                <i data-lucide="receipt" class="w-4 h-4"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">${t.description}</p>
+                                <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-500 mt-0.5">
+                                    <span class="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md font-medium">${t.category}</span>
+                                    <span>${t.date}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0 pl-2">
+                            <span class="font-bold text-sm mr-2 text-slate-800 dark:text-slate-200">-₹${formatMoney(t.amount)}</span>
+                            <button onclick="editExpense('${t.id}')" class="text-slate-400 hover:text-blue-500 p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Edit"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="deleteExpense('${t.id}')" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors" title="Delete"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                    `;
+                    listEl.appendChild(li);
+                });
+                lucide.createIcons();
+            }
+        }
+
+        // ==========================================
+        // ⚙️ SETTINGS & CATEGORIES
+        // ==========================================
+        function openSettingsModal() { document.getElementById('settingsModal').showModal(); }
+
+        function renderSettingsCategories() {
+            const list = document.getElementById('settingsCategoryList');
+            list.innerHTML = categories.map(cat => `
+                <li class="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                    <span class="text-sm dark:text-slate-300">${cat}</span>
+                    <button onclick="removeCategory('${cat}')" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </li>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function addCategory() {
+            const input = document.getElementById('newCategoryInput');
+            const val = input.value.trim();
+            if (val && !categories.includes(val)) {
+                categories.push(val);
+                input.value = '';
+                saveData();
+                updateUI();
+            }
+        }
+
+        function removeCategory(cat) {
+            if (confirm(`Remove "${cat}"? Expenses with this category won't be deleted.`)) {
+                categories = categories.filter(c => c !== cat);
+                saveData();
+                updateUI();
+            }
+        }
+
+        function exportJSON() {
+            const dataStr = JSON.stringify({ expenses, categories, budgets, exportDate: new Date() }, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `expense_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        }
+
+        function importJSON(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.expenses) expenses = data.expenses;
+                    if (data.categories) categories = data.categories;
+                    if (data.budgets) budgets = data.budgets;
+                    saveData();
+                    updateUI();
+                    alert("Data restored successfully!");
+                    document.getElementById('settingsModal').close();
+                } catch (err) {
+                    alert("Invalid JSON file.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ==========================================
+        // 📉 CHARTS
+        // ==========================================
+        function updateCharts() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+
+            // Shared Options
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: textColor, font: { size: 10 }, boxWidth: 10 } }
+                },
+                scales: {
+                    x: { ticks: { color: textColor }, grid: { display: false } },
+                    y: { ticks: { color: textColor }, grid: { color: isDark ? '#334155' : '#e2e8f0' }, border: { display: false } }
+                }
+            };
+
+            const canvasCat = document.getElementById('categoryChart');
+            if (expenses.length === 0) canvasCat.style.display = 'none';
+            else canvasCat.style.display = 'block';
+
+            const catTotals = {};
+            expenses.forEach(t => catTotals[t.category] = (catTotals[t.category] || 0) + parseFloat(t.amount));
+
+            if (categoryChartInstance) categoryChartInstance.destroy();
+            categoryChartInstance = new Chart(canvasCat.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(catTotals),
+                    datasets: [{
+                        data: Object.values(catTotals),
+                        backgroundColor: ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'],
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: { x: { display: false }, y: { display: false } },
+                    plugins: { legend: { position: 'right', labels: { color: textColor, boxWidth: 10, font: { size: 10 } } } },
+                    cutout: '70%'
+                }
+            });
+
+            // Trend Chart
+            const canvasTrend = document.getElementById('trendChart');
+            if (expenses.length === 0) canvasTrend.style.display = 'none';
+            else canvasTrend.style.display = 'block';
+
+            const last15Days = {};
+            const today = new Date();
+            for (let i = 14; i >= 0; i--) {
+                const d = new Date(today); d.setDate(d.getDate() - i);
+                last15Days[d.toISOString().split('T')[0]] = 0;
+            }
+            expenses.forEach(t => {
+                if (last15Days[t.date] !== undefined) last15Days[t.date] += parseFloat(t.amount);
+            });
+
+            if (trendChartInstance) trendChartInstance.destroy();
+            trendChartInstance = new Chart(canvasTrend.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: Object.keys(last15Days).map(d => d.substring(5)),
+                    datasets: [{
+                        label: 'Spending',
+                        data: Object.values(last15Days),
+                        borderColor: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // ==========================================
+        // ⚡ CORE ACTIONS
+        // ==========================================
+        document.getElementById('expenseForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('amount').value);
+            const category = document.getElementById('category').value.trim();
+            const description = document.getElementById('description').value.trim() || category;
+            const date = document.getElementById('date').value;
+
+            // Add category if new
+            if (!categories.includes(category)) {
+                categories.push(category);
+            }
+
+            if (editingId) {
+                expenses = expenses.map(exp => exp.id === editingId ? { ...exp, amount, category, description, date } : exp);
+                editingId = null;
+                this.querySelector('button[type="submit"]').innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Save Expense';
+            } else {
+                expenses.push({ id: crypto.randomUUID(), amount, category, description, date });
+            }
+            saveData();
+            this.reset();
+            document.getElementById('date').value = date;
+            updateUI();
+        });
+
+        window.deleteExpense = function (id) {
+            if (confirm("Delete this expense?")) {
+                expenses = expenses.filter(t => t.id !== id);
+                saveData();
+                updateUI();
+            }
+        };
+
+        window.editExpense = function (id) {
+            const exp = expenses.find(e => e.id === id);
+            if (!exp) return;
+            document.getElementById('amount').value = exp.amount;
+            document.getElementById('category').value = exp.category;
+            document.getElementById('description').value = exp.description;
+            document.getElementById('date').value = exp.date;
+            editingId = id;
+            document.getElementById('expenseForm').querySelector('button[type="submit"]').innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Update Expense';
+            lucide.createIcons();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        function exportToCSV() {
+            if (expenses.length === 0) return alert("No expenses to export.");
+            const headers = ["Date", "Category", "Description", "Amount"];
+            const csvRows = [headers.join(',')];
+            expenses.forEach(t => csvRows.push([t.date, `"${t.category}"`, `"${t.description}"`, t.amount].join(',')));
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `expenses_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+
+        // Budget Modal
+        function openBudgetModal() {
+            document.getElementById('overallBudgetInput').value = budgets.overall || '';
+            const catContainer = document.getElementById('categoryBudgetInputs');
+            catContainer.innerHTML = '';
+
+            // Show all custom categories
+            categories.forEach(cat => {
+                const val = budgets.categories[cat] || '';
+                catContainer.innerHTML += `
+                    <div>
+                        <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1 truncate">${cat}</label>
+                        <input type="number" data-cat="${cat}" value="${val}" class="cat-budget-input w-full px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded outline-none focus:ring-1 focus:ring-primary dark:text-white">
+                    </div>
+                `;
+            });
+            document.getElementById('budgetModal').showModal();
+        }
+
+        function saveBudgets() {
+            budgets.overall = parseFloat(document.getElementById('overallBudgetInput').value) || 0;
+            document.querySelectorAll('.cat-budget-input').forEach(input => {
+                const val = parseFloat(input.value) || 0;
+                if (val > 0) budgets.categories[input.getAttribute('data-cat')] = val;
+                else delete budgets.categories[input.getAttribute('data-cat')];
+            });
+            saveData();
+            document.getElementById('budgetModal').close();
+            updateUI();
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
