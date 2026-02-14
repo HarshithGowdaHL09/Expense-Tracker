@@ -233,6 +233,20 @@
 
             <!-- Middle Column: Charts -->
             <div class="lg:col-span-1 space-y-6">
+                <!-- Filter Controls for Charts -->
+                <div
+                    class="flex items-center justify-between bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-dark-border p-3 transition-colors">
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">View:</span>
+                    <select id="chartFilter" onchange="updateCharts()"
+                        class="text-sm bg-slate-100 dark:bg-slate-800 border-none rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none dark:text-white">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="year">This Year</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+
                 <!-- Doughnut Chart (Categories) -->
                 <div
                     class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-5 flex flex-col justify-center items-center h-[320px] transition-colors">
@@ -246,8 +260,8 @@
                 <!-- Line Chart (Trend) -->
                 <div
                     class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-5 flex flex-col justify-center items-center h-[320px] transition-colors">
-                    <h3 class="text-sm font-semibold w-full text-left mb-2 text-slate-700 dark:text-slate-300">15-Day
-                        Spending Trend</h3>
+                    <h3 class="text-sm font-semibold w-full text-left mb-2 text-slate-700 dark:text-slate-300">Spending
+                        Trend</h3>
                     <div class="w-full h-full relative flex justify-center items-center pb-4">
                         <canvas id="trendChart"></canvas>
                     </div>
@@ -257,7 +271,7 @@
             <!-- Right Column: List & Filters -->
             <div class="lg:col-span-1">
                 <div
-                    class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-6 h-full max-h-[665px] flex flex-col transition-colors">
+                    class="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-6 h-full max-h-[725px] flex flex-col transition-colors">
 
                     <div class="flex flex-col gap-3 mb-4">
                         <h3 class="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-white">
@@ -679,8 +693,109 @@
         function updateCharts() {
             const isDark = document.documentElement.classList.contains('dark');
             const textColor = isDark ? '#94a3b8' : '#64748b';
+            const filter = document.getElementById('chartFilter').value;
 
-            // Shared Options
+            // 1. Filter Logic
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            const startOfWeekStr = getStartOfWeek(todayStr);
+            const currentMonthStr = todayStr.substring(0, 7);
+            const currentYearStr = todayStr.substring(0, 4);
+
+            let filteredExpenses = [];
+
+            if (filter === 'today') {
+                filteredExpenses = expenses.filter(t => t.date === todayStr);
+            } else if (filter === 'week') {
+                filteredExpenses = expenses.filter(t => t.date >= startOfWeekStr && t.date <= todayStr);
+            } else if (filter === 'month') {
+                filteredExpenses = expenses.filter(t => t.date.startsWith(currentMonthStr));
+            } else if (filter === 'year') {
+                filteredExpenses = expenses.filter(t => t.date.startsWith(currentYearStr));
+            } else {
+                filteredExpenses = expenses;
+            }
+
+            // 2. Data Preparation
+            // Doughnut Data (Category Sums)
+            const catTotals = {};
+            filteredExpenses.forEach(t => catTotals[t.category] = (catTotals[t.category] || 0) + parseFloat(t.amount));
+
+            // Trend Data (Date/Month Sums)
+            const trendData = {};
+            let trendLabels = [];
+
+            if (filter === 'year') {
+                // Monthly grouping for Year view
+                const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                // Initialize all months to 0
+                for (let i = 0; i < 12; i++) {
+                    // Check if month is in future relative to today? Optional.
+                    // Let's just show all months or up to current month.
+                    // Showing all 12 months is standard for a year view.
+                    trendData[i] = 0;
+                }
+                filteredExpenses.forEach(t => {
+                    const monthIndex = parseInt(t.date.substring(5, 7)) - 1;
+                    trendData[monthIndex] += parseFloat(t.amount);
+                });
+                trendLabels = monthNames;
+            } else {
+                // Daily grouping for other views
+                // For 'all', 'month', 'week', 'today' - show distinct days found or range
+
+                if (filter === 'today') {
+                    // Just show today
+                    trendData[todayStr] = 0;
+                    trendLabels = [todayStr.substring(5)]; // MM-DD
+                } else if (filter === 'week') {
+                    // Show all days of current week
+                    for (let i = 0; i < 7; i++) {
+                        const d = new Date(startOfWeekStr);
+                        d.setDate(d.getDate() + i);
+                        const dStr = d.toISOString().split('T')[0];
+                        if (dStr <= todayStr) trendData[dStr] = 0; // Only up to today? or whole week?
+                    }
+                } else if (filter === 'month') {
+                    // Show all days of month up to today
+                    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+                    for (let i = 1; i <= daysInMonth; i++) {
+                        const dStr = `${currentMonthStr}-${String(i).padStart(2, '0')}`;
+                        if (dStr <= todayStr) trendData[dStr] = 0;
+                    }
+                } else {
+                    // All time: Sort all unique dates? 
+                    // Can be too many points. Let's group by Month if > 60 days?
+                    // For simplicity in this offline version, let's just group by existing dates found sorted.
+                    // Or keep the "Last 15 days" logic if 'All' is selected?
+                    // The user asked for "charts in different way", let's map 'All' to 'Last 30 Days' or similar for trend stability.
+                    // Actually, let's map 'All' to monthly aggregation if spanning multiple months, else daily.
+                    // For simplicity: Just show daily for all dates present.
+                }
+
+                // If filter is explicitly set, use the pre-filled keys, otherwise just found dates
+                if (Object.keys(trendData).length === 0) {
+                    // For 'All' or fallback
+                    filteredExpenses.forEach(t => trendData[t.date] = 0);
+                }
+
+                filteredExpenses.forEach(t => {
+                    if (trendData[t.date] !== undefined) trendData[t.date] += parseFloat(t.amount);
+                    else if (filter === 'all') trendData[t.date] = (trendData[t.date] || 0) + parseFloat(t.amount);
+                });
+
+                // Sort dates
+                const sortedDates = Object.keys(trendData).sort();
+                trendLabels = sortedDates.map(d => d.substring(5)); // MM-DD
+                // Rebuild trendData in sort order
+                const sortedValues = sortedDates.map(d => trendData[d]);
+                // Swap trendData to be the values array
+                // Hacky reuse of variable name 'trendData' as object vs array context.
+                // Let's make a new values array.
+                var finalTrendValues = sortedValues;
+            }
+
+            // Shared Chart Options
             const commonOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -693,12 +808,14 @@
                 }
             };
 
+            // RENDER DOUGHNUT
             const canvasCat = document.getElementById('categoryChart');
-            if (expenses.length === 0) canvasCat.style.display = 'none';
-            else canvasCat.style.display = 'block';
-
-            const catTotals = {};
-            expenses.forEach(t => catTotals[t.category] = (catTotals[t.category] || 0) + parseFloat(t.amount));
+            if (filteredExpenses.length === 0 && filter !== 'all') {
+                // Show empty state if no data for period? Or just empty chart.
+                // Chart.js handles empty data okay, but looks blank.
+            }
+            // Always show canvas to avoid layout shift, maybe showing text if empty
+            canvasCat.style.display = 'block';
 
             if (categoryChartInstance) categoryChartInstance.destroy();
             categoryChartInstance = new Chart(canvasCat.getContext('2d'), {
@@ -719,34 +836,25 @@
                 }
             });
 
-            // Trend Chart
+            // RENDER TREND
             const canvasTrend = document.getElementById('trendChart');
-            if (expenses.length === 0) canvasTrend.style.display = 'none';
-            else canvasTrend.style.display = 'block';
+            canvasTrend.style.display = 'block';
 
-            const last15Days = {};
-            const today = new Date();
-            for (let i = 14; i >= 0; i--) {
-                const d = new Date(today); d.setDate(d.getDate() - i);
-                last15Days[d.toISOString().split('T')[0]] = 0;
-            }
-            expenses.forEach(t => {
-                if (last15Days[t.date] !== undefined) last15Days[t.date] += parseFloat(t.amount);
-            });
+            const datasetData = (filter === 'year') ? Object.values(trendData) : finalTrendValues;
 
             if (trendChartInstance) trendChartInstance.destroy();
             trendChartInstance = new Chart(canvasTrend.getContext('2d'), {
                 type: 'line',
                 data: {
-                    labels: Object.keys(last15Days).map(d => d.substring(5)),
+                    labels: trendLabels,
                     datasets: [{
                         label: 'Spending',
-                        data: Object.values(last15Days),
+                        data: datasetData,
                         borderColor: '#4f46e5',
                         backgroundColor: 'rgba(79, 70, 229, 0.1)',
                         borderWidth: 2,
                         tension: 0.4,
-                        pointRadius: 2,
+                        pointRadius: 3,
                         fill: true
                     }]
                 },
